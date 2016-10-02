@@ -1,0 +1,159 @@
+input {
+  beats {
+    port => {{logstash_beats_port}}
+  }
+  udp {
+    type => 'syslog'
+    port => {{logstash_syslog_port}}
+  }
+}
+
+filter {
+  if [type] == "squid_access" {
+    grok {
+      add_field => [ "reveived_at", "%{@timestamp}" ]
+      add_field => [ "received_from", "%{host}" ]
+      match => { "message" => "%{NUMBER:squid_timestamp:float}[ ]*%{NUMBER:squid_elapsed:int} %{IP:squid_remotehost} %{DATA:squid_code_status} %{NUMBER:squid_bytes:int} %{DATA:squid_method} %{DATA:squid_URL} %{DATA:squid_rfc931} %{DATA:squid_peerstatus_peerhost} %{DATA:squid_type}$" }
+      tag_on_failure => ["grok_squid_access_failure","grok_needs_review","_grokparsefailure"]
+    }
+    date { match => [ "squid_timestamp", "UNIX" ] }
+  }
+  elseif [type] == "windowseventlog" {
+    mutate {
+      # Lowercase some values that are always in uppercase
+      lowercase => [ "EventType", "FileName", "Hostname", "Severity" ]
+    }
+    mutate {
+      # Set source to what the message says
+      rename => [ "Hostname", "@source_host" ]
+    }
+    date {
+      match => ["EventReceivedTime", "YYYY-MM-dd HH:mm:ss"]
+      timezone => "America/Chicago"
+    }
+    #date {
+    #  # Convert timestamp from integer in UTC
+    #  EventReceivedTime => "UNIX"
+    #}
+    mutate {
+      # Rename some fields into something more useful
+      rename => [ "Message", "@message" ]
+      rename => [ "Severity", "eventlog_severity" ]
+      rename => [ "SeverityValue", "eventlog_severity_code" ]
+      rename => [ "Channel", "eventlog_channel" ]
+      rename => [ "SourceName", "eventlog_program" ]
+      rename => [ "SourceModuleName", "nxlog_input" ]
+      rename => [ "Category", "eventlog_category" ]
+      rename => [ "EventID", "eventlog_id" ]
+      rename => [ "RecordNumber", "eventlog_record_number" ]
+      rename => [ "ProcessID", "eventlog_pid" ]
+    }
+    mutate {
+      # Remove redundant fields
+      remove_field => [ "SourceModuleType", "EventTimeWritten", "EventTime", "EventType" ]
+    }
+  }
+
+  elseif [type] == "syslog" {
+    grok { #match all syslog messages
+      add_field => [ "received_at", "%{@timestamp}" ]
+      add_field => [ "received_from", "%{host}" ]
+      match => { "message" => "%{SYSLOGTIMESTAMP:syslog_timestamp} %{SYSLOGHOST:syslog_hostname} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid:int}\])?: %{GREEDYDATA:syslog_message}" }
+      #break_on_match => false
+      tag_on_failure => ["grok_syslog_failure","grok_needs_review","_grokparsefailure"]
+    }
+    date { match => [ "syslog_timestamp", "MMM  d HH:mm:ss", "MMM dd HH:mm:ss" ] }
+    if [syslog_program] == "dhcpd" {
+      grok {
+        match => { "syslog_message" => "(?<dhcpd_action>[A-Z]*?) [A-z]*? %{IP:dhcpd_client} [A-z]*? %{MAC:dhcpd_mac} \(%{HOSTNAME:dhcpd_hostname}\) [A-z]*? (?<dhcpd_iface>.*)" }
+        match => { "syslog_message" => "(?<dhcpd_action>[A-Z]*?) [A-z]*? %{IP:dhcpd_client} [A-z]*? %{MAC:dhcpd_mac} [A-z]*? (?<dhcpd_iface>.*)" }
+        match => { "syslog_message" => "(?<dhcpd_message>Can't create new lease file: Permission denied.*)" }
+        tag_on_failure => ["grok_syslog_%{syslog_program}_fail","_grokparsefailure"]
+      }
+    }
+    elseif [syslog_program] == "dhclient" {
+      grok {
+        #break_on_match => false
+        match => ['syslog_message', "%{DATA:dhclient_action} of %{IP:dhclient_client} from %{IP:dhclient_server}",
+        'syslog_message', "bound to %{IP:dhclient_client} -- renewal in %{NUMBER:dhclient_renewaltime:int}",
+        'syslog_message', "%{DATA:dhclient_action} of %{IP:dhclient_client} on %{DATA:dhclient_iface} to %{IP:dhclient_server} port %{NUMBER:dhclient_port:int} \(xid=%{BASE16NUM:dhclient_xid}\)" ]
+        tag_on_failure => ["grok_syslog_dhclient_fail","_grokparsefailure"]
+      }
+      #convert hex xid to decimal
+      if [dhclient_xid] {
+        ruby {
+          code => "event['dhclient_xid'] = event['dhclient_xid'].hex"
+        }
+      }
+    }
+    elseif [syslog_program] == "named" {
+      grok {
+        #break_on_match => false
+        match => ['syslog_message', "error \(%{DATA:named_error}\) resolving '%{DATA:named_address}': %{IP:named_ip}#%{NUMBER:named_port:int}",
+                  'syslog_message', "validating @%{BASE16NUM}: %{DATA}: got insecure response; parent indicates it should be secure",
+                  'syslog_message', "error \(%{DATA:named_error}\) resolving '%{DATA}': %{IP:named_ip}#%{NUMBER:named_port:int}" ]
+                  #'syslog_message', '' ]
+        tag_on_failure => ["grok_syslog_named_fail","_grokparsefailure"]
+      }
+    }
+    elseif [syslog_program] == "sshd" {
+      grok {
+        #break_on_match => false
+        match => ['syslog_message', '%{DATA:sshd_action} for %{DATA:sshd_username} from %{IP:sshd_ip} port %{NUMBER:sshd_port:int} ssh2: RSA (?<sshd_rsa:>(?:[A-Fa-f0-9]{2}:){15}[A-Fa-f0-9]{2})',
+                  'syslog_message', "pam_unix\(%{DATA:}\): session %{DATA:sshd_status} for user %{DATA:sshd_username} by \(uid=%{NUMBER:sshd_uid:int}\)" ]
+        tag_on_failure => ["grok_syslog_sshd_fail","_grokparsefailure"]
+      }
+    }
+    elseif [syslog_program] == "sudo" {
+      grok {
+        #break_on_match => false
+        match => ['syslog_message', "%{DATA:sudo_module}\(%{DATA:sudo_auth}\): %{DATA:sudo_action} for %{DATA:sudo_impersonator}",
+                  'syslog_message', "%{DATA:sudo_module}\(%{DATA:sudo_auth}\): %{DATA:sudo_action} for %{DATA:sudo_impersonating} by %{DATA:sudo_impersonator}\(uid=%{NUMBER:uid:int}\)",
+                  'syslog_message', "%{DATA:sudo_impersonator}%{SPACE}:%{SPACE}TTY=%{DATA:sudo_tty}%{SPACE};%{SPACE}PWD=%{DATA:sudo_pwd}%{SPACE};%{SPACE}USER=%{DATA:sudo_impersonating}%{SPACE};%{SPACE}COMMAND=%{GREEDYDATA:sudo_command}",
+                  'syslog_message', "%{DATA:sudo_impersonator} : \(command continued\) \'%{DATA:sudo_command}\)" ]
+        tag_on_failure => ["grok_syslog_sudo_fail","_grokparsefailure"]
+      }
+    }
+    elseif [syslog_program] == "elasticsearch" {
+      grok {
+        match => ['syslog_message', "\[%{DATA}]\[%{WORD:elasticsearch_loglevel}%{SPACE}]\[%{PROG:elasticsearch_service}%{SPACE}] \[%{PROG:elasticsearch_type}]%{GREEDYDATA:elasticsearch_message}",
+                  'syslog_message', "org.elasticsearch%{GREEDYDATA:elasticsearch_message}" ]
+        tag_on_failure => ["grok_syslog_elasticsearch_fail","_grokparsefailure"]
+      }
+    }
+    elseif [syslog_program] == "CRON" {
+      grok {
+        match => ['syslog_message', "\(%{DATA:cron_user}\) CMD \(%{DATA:cron_command}\)",
+          'syslog_message', "pam_unix\(cron:session\): session %{DATA:cron_session_action} for user %{DATA:cron_user} by \(uid=%{NUMBER:cron_uid:int}\)" ]
+        tag_on_failure => ["grok_syslog_cron_fail","_grokparsefailure"]
+      }
+    }
+    elseif [syslog_program] == "systemd" {
+      grok {
+        match => ['syslog_message', "(?<systemd_action>Reloading)\.",
+                  'syslog_message', "%{DATA:systemd_action}%{SPACE}LSB:%{SPACE}Starts%{SPACE}%{WORD:systemd_service}",
+                  'syslog_message', "%{DATA:systemd_action}%{SPACE}[Ss]ession%{SPACE}%{NUMBER:systemd_session}%{SPACE}of%{SPACE}user%{SPACE}%{DATA:systemd_user}\." ]
+        tag_on_failure => ["grok_syslog_cron_fail","_grokparsefailure"]
+      }
+    }
+    elseif [syslog_program] == "systemd-logind" {
+      grok {
+        match => [ 'syslog_message', "%{DATA:systemd_action}%{SPACE}[Ss]ession%{SPACE}%{NUMBER:systemd_session}%{SPACE}of%{SPACE}user%{SPACE}%{DATA:systemd_user}\." ]
+      tag_on_failure => ["grok_syslog_cron_fail","_grokparsefailure"]
+      }
+    }
+    #ignored/known syslog programs
+    elseif "kernel" == [syslog_program] {}
+    elseif "ansible" in [syslog_program] {}
+    else {
+      grok {
+        tag_on_failure => ["grok_syslog_unknown","_grokparsefailure"]
+      }
+    }
+  }
+}
+
+output {
+  #stdout { codec => rubydebug }
+  elasticsearch { hosts => ["{{logstash_elastic_output}}"] }
+}

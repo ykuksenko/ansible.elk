@@ -1,0 +1,39 @@
+---
+- name: configure dnf repo
+  copy: >
+    src=logstash.repo
+    dest=/etc/yum.repos.d/logstash.repo
+    owner=root
+    group=root
+    mode=0644
+  register: updated_sources
+
+- name: install logstash
+  package: >
+    name=logstash
+    state=latest
+
+- name: configure logstash
+  template: >
+    src={{logstash_conf}}
+    dest=/etc/logstash/conf.d/logstash.conf
+    owner=logstash
+    group=logstash
+  notify: restart logstash
+
+- name: set logstash options to production mode
+  lineinfile: >
+    dest=/etc/init.d/logstash
+    regexp='^LS_OPTS=".*"$'
+    line='LS_OPTS="--quiet"'
+  notify: restart logstash
+
+- name: give logstash permissions to read logs
+  user: >
+    name=logstash
+    groups={{ item }}
+    append=yes
+  notify: restart logstash
+  with_items:
+    - adm
+#    - proxy

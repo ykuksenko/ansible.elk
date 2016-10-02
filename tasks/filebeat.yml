@@ -1,0 +1,40 @@
+---
+- name: configure dnf repo
+  copy: >
+    src=beats.repo
+    dest=/etc/yum.repos.d/beats.repo
+    owner=root
+    group=root
+    mode=0644
+  register: updated_sources
+
+- name: install filebeat
+  package: >
+    name=filebeat
+    state=latest
+
+- name: configure filebeat
+  template: >
+    dest=/etc/filebeat/filebeat.yml
+    src={{filebeat_yml}}
+    owner=root
+    group=root
+    mode=0644
+  notify:
+    - restart filebeat
+
+- name: configure filebeat template
+  template: >
+    dest=/etc/filebeat/filebeat.template.json
+    src={{filebeat_template}}
+    owner=root
+    group=root
+    mode=0644
+  notify:
+    - restart filebeat
+
+- name: ensure filebeat running
+  service: >
+    name=filebeat
+    state=started
+    enabled=yes

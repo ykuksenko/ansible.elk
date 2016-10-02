@@ -1,0 +1,49 @@
+---
+- name: configure yum/dnf repo
+  copy: >
+    src=elasticsearch.repo
+    dest=/etc/yum.repos.d/elasticsearch.repo
+    owner=root
+    group=root
+    mode=0644
+  register: updated_sources
+
+- name: install elasticsearch
+  package: >
+    name="{{item}}"
+    state=latest
+  with_items:
+    - "{{elk_java_package}}"
+    - elasticsearch
+
+- name: configure elasticsearch
+  template: >
+    src={{elasticsearch_yml}}
+    dest=/etc/elasticsearch/elasticsearch.yml
+    mode=0750
+    group={{elasticsearch_group}}
+    owner={{elasticsearch_user}}
+  notify:
+    - restart elasticsearch
+
+- name: configure elasticsearch directories
+  file: >
+    path={{ item }}
+    state=directory
+    owner={{elasticsearch_user}}
+    group={{elasticsearch_group}}
+  with_items:
+    - "{{elasticsearch_mount}}"
+    - "{{elasticsearch_data_path}}"
+    - "{{elasticsearch_work_path}}"
+    - "{{elasticsearch_logs_path}}"
+    - "{{elasticsearch_scripts_path}}"
+  notify:
+    - restart elasticsearch
+
+- name: configure elasticsearch to start on boot
+  service: >
+    name={{elasticsearch_service_name}}
+    enabled=yes
+  notify:
+  - restart elasticsearch

@@ -1,0 +1,61 @@
+---
+elasticsearch_gpgkey_url: https://packages.elastic.co/GPG-KEY-elasticsearch
+elasticsearch_cluster_name: elastic_role
+elasticsearch_node_name: "{{ansible_fqdn}}"
+elasticsearch_memory_lock: 'true'
+elasticsearch_discovery_hosts: "[\"127.0.0.1\", \"[::1]\"]"
+elasticsearch_discovery_minimum_hosts: 1
+elasticsearch_recovery_hosts: 1
+elasticsearch_local_storage_nodes: 1
+elasticsearch_install_path: /usr/share/elasticsearch
+elasticsearch_config_path: "{{elasticsearch_install_path}}"
+elasticsearch_mount: /mnt/elasticsearch
+elasticsearch_data_path: "{{elasticsearch_mount}}/data"
+elasticsearch_work_path: "{{elasticsearch_mount}}/work"
+elasticsearch_logs_path: "{{elasticsearch_mount}}/logs"
+elasticsearch_scripts_path: "{{elasticsearch_mount}}/scripts"
+elasticsearch_plugins_path: "{{elasticsearch_mount}}/plugins"
+elasticsearch_transport_port: 9300
+elasticsearch_transport_compress: 'true'
+elasticsearch_http_port: 9200
+elasticsearch_user: elasticsearch
+elasticsearch_group: elasticsearch
+elasticsearch_service_name: elasticsearch
+elasticsearch_network_host: 'localhost'
+elasticsearch_network_bind_host: 'localhost'
+elasticsearch_network_publish_host: 'localhost'
+elasticsearch_plugins:
+  - folder: kopf
+    plugin: lmenezes/elasticsearch-kopf
+  - folder: hq
+    plugin: royrusso/elasticsearch-HQ
+kibana_service_name: kibana
+kibana_port: 5601
+kibana_host: 0.0.0.0
+kibana_elasticsearch_url: http://127.0.0.1:9200
+logstash_service_name: logstash
+logstash_elastic_output: 127.0.0.1:{{elasticsearch_http_port}}
+logstash_beats_port: 5044
+logstash_syslog_port: 3514
+topbeat_service_name: topbeat
+filebeat_service_name: filebeat
+packetbeat_service_name: packetbeat
+
+elasticsearch_yml: elasticsearch.yml.j2
+filebeat_yml: filebeat.yml.j2
+filebeat_template: filebeat.template.json.j2
+logstash_conf: logstash.conf.j2
+packetbeat_template: packetbeat.template.json.j2
+packetbeat_yml: packetbeat.yml.j2
+topbeat_template: topbeat.template.json.j2
+topbeat_yml: topbeat.yml.j2
+curator_conf: curator.yml.j2
+curator_actions_conf: curator_actions.yml.j2
+
+enable_elasticsearch: true
+enable_logstash: false
+enable_kibana: false
+enable_topbeat: false
+enable_filebeat: false
+enable_packetbeat: false
+enable_curator: true

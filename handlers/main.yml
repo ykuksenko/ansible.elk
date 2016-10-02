@@ -1,0 +1,29 @@
+- name: restart elasticsearch
+  service: >
+    name={{elasticsearch_service_name}}
+    state=restarted
+
+- name: restart logstash
+  service: >
+    name={{logstash_service_name}}
+    state=restarted
+
+- name: restart packetbeat
+  service: >
+    name={{packetbeat_service_name}}
+    state=restarted
+
+- name: restart filebeat
+  service: >
+    name={{filebeat_service_name}}
+    state=restarted
+
+- name: restart topbeat
+  service: >
+    name={{topbeat_service_name}}
+    state=restarted
+
+- name: restart kibana
+  service: >
+    name={{kibana_service_name}}
+    state=restarted

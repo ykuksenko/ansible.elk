@@ -1,0 +1,5 @@
+- name: import elasticsearch GPG key
+  rpm_key: >
+    key=https://packages.elastic.co/GPG-KEY-elasticsearch
+    state=present
+  register: updated_key

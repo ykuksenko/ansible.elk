@@ -1,0 +1,31 @@
+---
+  - include_vars: "{{item}}"
+    with_first_found:
+      - "{{ansible_distribution}}.yml"
+      - main.yml
+  - include: shared.yml
+    when: >
+      enable_elasticsearch or
+      enable_logstash or
+      enable_kibana or
+      enable_topbeat or
+      enable_filebeat or
+      enable_packetbeat or
+      enable_curator
+  - include: elasticsearch.yml
+    when: enable_elasticsearch
+  - include: elasticsearch_plugins.yml
+    with_items: "{{elasticsearch_plugins}}"
+    when: enable_elasticsearch
+  - include: logstash.yml
+    when: enable_logstash
+  - include: kibana.yml
+    when: enable_kibana
+  - include: topbeat.yml
+    when: enable_topbeat
+  - include: filebeat.yml
+    when: enable_filebeat
+  - include: packetbeat.yml
+    when: enable_packetbeat
+  - include: curator.yml
+    when: enable_curator

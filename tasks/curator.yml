@@ -1,0 +1,44 @@
+---
+- name: configure dnf repo
+  copy: >
+    src=curator.repo
+    dest=/etc/yum.repos.d/curator.repo
+    owner=root
+    group=root
+    mode=0644
+  register: updated_sources
+
+- name: install curator
+  package: >
+    name=python-elasticsearch-curator
+    state=latest
+
+- name: configure curator actions
+  template: >
+    src={{curator_actions_conf}}
+    dest=/etc/curator_actions.yml
+    owner=root
+    group=root
+    mode=0600
+  register: curator_conf_actions_status
+
+- name: configure curator
+  template: >
+    src={{curator_conf}}
+    dest=/etc/curator.yml
+    owner=root
+    group=root
+    mode=0600
+  register: curator_conf_status
+
+- name: schedule curator to run
+  cron: >
+    name=curator
+    job='/bin/curator --config /etc/curator.yml /etc/curator_actions.yml'
+    hour=1
+    day=*
+    minute=*
+
+- name: run curator
+  command: /bin/curator --config /etc/curator.yml /etc/curator_actions.yml
+  when: curator_conf_status.changed or curator_conf_actions_status.changed

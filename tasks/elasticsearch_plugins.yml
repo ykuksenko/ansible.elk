@@ -1,0 +1,8 @@
+---
+- name: check if {{item.folder}} is installed
+  stat: path={{elasticsearch_plugins_path}}/{{item.folder}}
+  register: plugin_exists
+
+- name: install {{item.folder}}
+  command: "{{elasticsearch_install_path}}/bin/plugin install {{item.plugin}}"
+  when: plugin_exists.stat.exists == False

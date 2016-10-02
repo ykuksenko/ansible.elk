@@ -1,0 +1,40 @@
+---
+- name: configure dnf repo
+  copy: >
+    src=beats.repo
+    dest=/etc/yum.repos.d/beats.repo
+    owner=root
+    group=root
+    mode=0644
+  register: updated_sources
+
+- name: install packetbeat
+  package: >
+    name=packetbeat
+    state=latest
+
+- name: configure packetbeat
+  template: >
+    dest=/etc/packetbeat/packetbeat.yml
+    src={{packetbeat_yml}}
+    owner=root
+    group=root
+    mode=0644
+  notify:
+    - restart packetbeat
+
+- name: configure packetbeat template
+  template: >
+    dest=/etc/packetbeat/packetbeat.template.json
+    src={{packetbeat_template}}
+    owner=root
+    group=root
+    mode=0644
+  notify:
+    - restart packetbeat
+
+- name: ensure packetbeat running
+  service: >
+    name=packetbeat
+    state=started
+    enabled=yes

@@ -1,0 +1,13 @@
+filebeat:
+  prospectors:
+    - paths:
+        - /var/log/*.log
+      input_type: log
+  registry_file: /var/lib/filebeat/registry
+output:
+  logstash:
+    hosts: ["{{elasticsearch_node_name}}:{{logstash_beats_port}}"]
+    compression_level: 3
+shipper:
+logging:
+  files:

@@ -1,0 +1,40 @@
+---
+- name: configure dnf repo
+  copy: >
+    src=beats.repo
+    dest=/etc/yum.repos.d/beats.repo
+    owner=root
+    group=root
+    mode=0644
+  register: updated_sources
+
+- name: install topbeat
+  package: >
+    name=topbeat
+    state=latest
+
+- name: configure topbeat
+  template: >
+    dest=/etc/topbeat/topbeat.yml
+    src={{topbeat_yml}}
+    owner=root
+    group=root
+    mode=0644
+  notify:
+    - restart topbeat
+
+- name: configure topbeat template
+  template: >
+    dest=/etc/topbeat/topbeat.template.json
+    src={{topbeat_template}}
+    owner=root
+    group=root
+    mode=0644
+  notify:
+    - restart topbeat
+
+- name: ensure topbeat running
+  service: >
+    name=topbeat
+    state=started
+    enabled=yes
